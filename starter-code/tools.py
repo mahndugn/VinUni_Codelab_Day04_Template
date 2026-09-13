@@ -22,9 +22,19 @@ def search_product_catalog(category: str, max_price: int = 999999999999) -> List
         Danh sách sản phẩm phù hợp điều kiện.
     """
     catalog_file = os.path.join(RAW_DATA_DIR, "product_catalog.json")
-    # TODO: Kiểm tra file tồn tại, đọc JSON, lọc sản phẩm
-    # Gợi ý: Lọc theo p["category"] == category AND p["price_vnd"] <= max_price
-    return []
+    if not os.path.exists(catalog_file):
+        return [{"error": "Product catalog file not found."}]
+
+    with open(catalog_file, "r", encoding="utf-8") as file:
+        products = json.load(file)
+
+    normalized_category = category.strip().lower()
+    return [
+        product
+        for product in products
+        if product.get("category", "").lower() == normalized_category
+        and product.get("price_vnd", float("inf")) <= max_price
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -49,9 +59,37 @@ def submit_support_ticket(
         Thông tin ticket vừa tạo bao gồm ticket_id, status.
     """
     tickets_file = os.path.join(RAW_DATA_DIR, "support_tickets.json")
-    # TODO: Load existing tickets, generate new ticket_id, append new ticket, save file
-    # Gợi ý: ticket_id = f"TK-{today}-{seq:03d}" với today = datetime.now().strftime("%Y%m%d")
-    return {"ticket_id": "TODO", "status": "TODO"}
+    existing_tickets = []
+    if os.path.exists(tickets_file):
+        with open(tickets_file, "r", encoding="utf-8") as file:
+            existing_tickets = json.load(file)
+
+    today = datetime.now().strftime("%Y%m%d")
+    sequence = len(existing_tickets) + 1
+    ticket_id = f"TK-{today}-{sequence:03d}"
+    normalized_priority = priority.strip().lower()
+
+    new_ticket = {
+        "ticket_id": ticket_id,
+        "customer_name": customer_name,
+        "issue_description": issue_description,
+        "priority": normalized_priority,
+        "status": "open",
+        "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "category": "general",
+    }
+    existing_tickets.append(new_ticket)
+
+    with open(tickets_file, "w", encoding="utf-8") as file:
+        json.dump(existing_tickets, file, indent=2, ensure_ascii=False)
+
+    return {
+        "ticket_id": ticket_id,
+        "customer_name": customer_name,
+        "priority": normalized_priority,
+        "status": "open",
+        "message": f"Ticket {ticket_id} đã được tạo thành công.",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +98,48 @@ def submit_support_ticket(
 # ---------------------------------------------------------------------------
 
 TOOL_DEFINITIONS = [
-    # TODO: Thêm schema cho "search_product_catalog"
-    # TODO: Thêm schema cho "submit_support_ticket"
+    {
+        "name": "search_product_catalog",
+        "description": "Tra cứu sản phẩm hoặc dịch vụ Vingroup theo danh mục và giá tối đa.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Danh mục cần tra cứu.",
+                    "enum": ["xe_dien", "du_lich"],
+                },
+                "max_price": {
+                    "type": "integer",
+                    "description": "Giá tối đa tính bằng VNĐ.",
+                },
+            },
+            "required": ["category"],
+        },
+    },
+    {
+        "name": "submit_support_ticket",
+        "description": "Tạo phiếu ghi nhận yêu cầu hỗ trợ của khách hàng.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_name": {
+                    "type": "string",
+                    "description": "Họ tên khách hàng.",
+                },
+                "issue_description": {
+                    "type": "string",
+                    "description": "Mô tả vấn đề cần hỗ trợ.",
+                },
+                "priority": {
+                    "type": "string",
+                    "description": "Mức độ ưu tiên của yêu cầu.",
+                    "enum": ["low", "medium", "high"],
+                },
+            },
+            "required": ["customer_name", "issue_description"],
+        },
+    },
 ]
 
 
